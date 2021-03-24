@@ -11,7 +11,7 @@ from miscc.utils import build_super_images, build_super_images2
 from miscc.utils import weights_init, load_params, copy_G_params
 from model import G_DCGAN, G_NET
 from datasets import prepare_data
-from model import RNN_ENCODER, CNN_ENCODER, CAPTION_CNN, CAPTION_RNN
+from model import RNN_ENCODER, CNN_ENCODER, BERT_RNN_ENCODER, BERT_CNN_ENCODER_RNN_DECODER, CAPTION_CNN, CAPTION_RNN
 from miscc.losses import words_loss
 from miscc.losses import discriminator_loss, generator_loss, KL_loss
 import os
@@ -41,12 +41,13 @@ class Trainer(object):
         self.num_batches = len(self.data_loader)
 
     def build_models(self):
-        # text encoders
+
+        ###########
         if cfg.TRAIN.NET_E == '':
             print('Error: no pretrained text-image encoders')
             return
-
-        image_encoder = CNN_ENCODER(cfg.TEXT.EMBEDDING_DIM)
+        image_encoder = BERT_CNN_ENCODER_RNN_DECODER(cfg.TEXT.EMBEDDING_DIM, cfg.CNN_RNN.HIDDEN_DIM,
+                                            self.n_words, rec_unit=cfg.RNN_TYPE)
         img_encoder_path = cfg.TRAIN.NET_E.replace('text_encoder', 'image_encoder')
         state_dict = \
             torch.load(img_encoder_path, map_location=lambda storage, loc: storage)
@@ -54,10 +55,10 @@ class Trainer(object):
         for p in image_encoder.parameters():
             p.requires_grad = False
         print('Load image encoder from:', img_encoder_path)
-        image_encoder.eval()
+        # image_encoder.eval()
 
         text_encoder = \
-            RNN_ENCODER(self.n_words, nhidden=cfg.TEXT.EMBEDDING_DIM)
+            BERT_RNN_ENCODER(self.n_words, nhidden=cfg.TEXT.EMBEDDING_DIM)
         state_dict = \
             torch.load(cfg.TRAIN.NET_E,
                        map_location=lambda storage, loc: storage)
@@ -66,6 +67,7 @@ class Trainer(object):
             p.requires_grad = False
         print('Load text encoder from:', cfg.TRAIN.NET_E)
         text_encoder.eval()
+        ###########
 
         # Caption models - cnn_encoder and rnn_decoder
         caption_cnn = CAPTION_CNN(cfg.CAP.embed_size)
@@ -349,7 +351,7 @@ class Trainer(object):
             netG.cuda()
             netG.eval()
             #
-            text_encoder = RNN_ENCODER(self.n_words, nhidden=cfg.TEXT.EMBEDDING_DIM)
+            text_encoder = BERT_RNN_ENCODER(self.n_words, nhidden=cfg.TEXT.EMBEDDING_DIM)
             state_dict = \
                 torch.load(cfg.TRAIN.NET_E, map_location=lambda storage, loc: storage)
             text_encoder.load_state_dict(state_dict)
@@ -421,7 +423,7 @@ class Trainer(object):
         else:
             # Build and load the generator
             text_encoder = \
-                RNN_ENCODER(self.n_words, nhidden=cfg.TEXT.EMBEDDING_DIM)
+                BERT_RNN_ENCODER(self.n_words, nhidden=cfg.TEXT.EMBEDDING_DIM)
             state_dict = \
                 torch.load(cfg.TRAIN.NET_E, map_location=lambda storage, loc: storage)
             text_encoder.load_state_dict(state_dict)
